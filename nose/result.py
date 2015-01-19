@@ -51,6 +51,31 @@ class TextTestResult(_TextTestResult):
             storage.append((test, reason))
             self.printLabel(label, (SkipTest, reason, None))
 
+    def addFailure(self, test, err):
+        """Overrides normal addError to add support for
+        errorClasses. If the exception is a registered class, the
+        error will be added to the list for that class, not errors.
+        """
+        ec, ev, tb = err
+        try:
+            exc_info = self._exc_info_to_string(err, test)
+        except TypeError:
+            # 2.3 compat
+            exc_info = self._exc_info_to_string(err)
+        for cls, (storage, label, isfail) in self.errorClasses.items():
+            #if 'Skip' in cls.__name__ or 'Skip' in ec.__name__:
+            #    from nose.tools import set_trace
+            #    set_trace()
+            if isclass(ec) and issubclass(ec, cls):
+                if isfail:
+                    test.passed = False
+                storage.append((test, exc_info))
+                self.printLabel(label, err)
+                return
+        self.errors.append((test, exc_info))
+        test.passed = False
+        self.printLabel('FAIL', err)
+
     def addError(self, test, err):
         """Overrides normal addError to add support for
         errorClasses. If the exception is a registered class, the
@@ -74,7 +99,7 @@ class TextTestResult(_TextTestResult):
                 return
         self.errors.append((test, exc_info))
         test.passed = False
-        self.printLabel('ERROR')
+        self.printLabel('ERROR', err)
 
     # override to bypass changes in 2.7
     def getDescription(self, test):
@@ -92,7 +117,7 @@ class TextTestResult(_TextTestResult):
                 if err:
                     detail = _exception_detail(err[1])
                     if detail:
-                        message.append(detail)
+                        message.append(detail.split("\n")[0])
                 stream.writeln(": ".join(message))
             elif self.dots:
                 stream.write(label[:1])
